@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { ethers } from 'ethers';
 import { encryptData, decryptData, EncryptedData } from '../utils/encryptionUtils';
@@ -11,7 +10,6 @@ interface WalletContextType {
   error: string | null;
   signature: string | null;
   encryptedAddress: EncryptedData | null;
-  encryptionMessage: string | null;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
   signMessage: (message: string) => Promise<string | null>;
@@ -28,7 +26,6 @@ const WalletContext = createContext<WalletContextType>({
   error: null,
   signature: null,
   encryptedAddress: null,
-  encryptionMessage: null,
   connectWallet: async () => {},
   disconnectWallet: () => {},
   signMessage: async () => null,
@@ -51,7 +48,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
   const [encryptedAddress, setEncryptedAddress] = useState<EncryptedData | null>(null);
-  const [encryptionMessage, setEncryptionMessage] = useState<string | null>(null);
 
   // Check if MetaMask is installed
   const isMetaMaskInstalled = () => {
@@ -138,10 +134,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       const provider = new ethers.providers.Web3Provider(ethereum);
       const signer = provider.getSigner();
       
-      // Create a unique message that includes a timestamp
-      const message = `Encrypt wallet data for Sapphire Network: ${Date.now()}`;
-      setEncryptionMessage(message);
-      
       const encrypted = await encryptData(addressJson, signer);
       setEncryptedAddress(encrypted);
       return encrypted;
@@ -157,15 +149,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     try {
       setError(null);
       
-      if (!encryptionMessage) {
-        throw new Error("Encryption message not found");
-      }
-      
       const { ethereum } = window as any;
       const provider = new ethers.providers.Web3Provider(ethereum);
       const signer = provider.getSigner();
       
-      const decrypted = await decryptData(encryptedData, signer, encryptionMessage);
+      const decrypted = await decryptData(encryptedData, signer);
       return decrypted;
     } catch (err: any) {
       console.error("Error decrypting address:", err);
@@ -239,7 +227,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         error,
         signature,
         encryptedAddress,
-        encryptionMessage,
         connectWallet,
         disconnectWallet,
         signMessage,

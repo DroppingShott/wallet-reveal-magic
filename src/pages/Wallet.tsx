@@ -6,7 +6,7 @@ import { Clipboard, ArrowRight, ExternalLink, LogOut, AlertCircle, Key, Lock, Wa
 import { useToast } from '@/hooks/use-toast';
 
 const Wallet = () => {
-  const { address, isConnected, isConnecting, error, encryptedAddress, encryptionMessage, connectWallet, disconnectWallet, encryptAddress, decryptAddress, getAddressAsJson } = useWallet();
+  const { address, isConnected, isConnecting, error, encryptedAddress, connectWallet, disconnectWallet, encryptAddress, decryptAddress, getAddressAsJson } = useWallet();
   const { toast } = useToast();
   const [isEncrypting, setIsEncrypting] = useState(false);
   const [isDecrypting, setIsDecrypting] = useState(false);
@@ -211,7 +211,6 @@ const Wallet = () => {
             </CardFooter>
           </Card>
           
-          {/* Replace the sign message card with Sapphire Network Encryption/Decryption */}
           <Card className="shadow-xl bg-slate-800 border-slate-700">
             <CardHeader>
               <CardTitle className="text-xl font-bold text-white">Sapphire Network Encryption</CardTitle>
@@ -272,31 +271,13 @@ const Wallet = () => {
                     <div className="flex items-center gap-2">
                       <div className="text-slate-200 font-mono text-xs break-all overflow-auto">
                         <p className="mb-1">Data: {encryptedAddress.data}</p>
-                        <p>IV: {encryptedAddress.iv}</p>
+                        <p className="mb-1">IV: {encryptedAddress.iv}</p>
+                        <p>Sign Message: {encryptedAddress.signMessage}</p>
                       </div>
                       <Button 
                         variant="outline" 
                         size="icon" 
                         onClick={() => copyToClipboard(JSON.stringify(encryptedAddress), "Encrypted Address")}
-                        className="flex-shrink-0 text-slate-400 hover:text-white border-slate-700"
-                      >
-                        <Clipboard className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {encryptionMessage && (
-                <div className="mt-4">
-                  <p className="text-sm text-slate-400 mb-1">Encryption Message (Save for decryption):</p>
-                  <div className="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                    <div className="flex items-center gap-2">
-                      <p className="text-slate-200 font-mono text-xs break-all">{encryptionMessage}</p>
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        onClick={() => copyToClipboard(encryptionMessage, "Encryption Message")}
                         className="flex-shrink-0 text-slate-400 hover:text-white border-slate-700"
                       >
                         <Clipboard className="h-4 w-4" />

@@ -7,6 +7,7 @@ import { ethers } from 'ethers';
 export interface EncryptedData {
   data: string;
   iv: string;
+  signMessage: string; // Add the signing message to the encrypted data
 }
 
 // Encrypt data using the wallet's signing capabilities
@@ -53,7 +54,8 @@ export const encryptData = async (data: string, signer: ethers.Signer): Promise<
     // Convert encrypted data and IV to strings for storage/transmission
     const encryptedData = {
       data: arrayBufferToBase64(encryptedContent),
-      iv: arrayBufferToBase64(iv)
+      iv: arrayBufferToBase64(iv),
+      signMessage: signMessage // Store the signing message with the encrypted data
     };
     
     return encryptedData;
@@ -63,11 +65,17 @@ export const encryptData = async (data: string, signer: ethers.Signer): Promise<
   }
 };
 
-export const decryptData = async (encryptedData: EncryptedData, signer: ethers.Signer, signMessage: string): Promise<string> => {
+// Updated decryption function to use the stored signing message from the encrypted data
+export const decryptData = async (encryptedData: EncryptedData, signer: ethers.Signer): Promise<string> => {
   try {
     // Convert data from storage format to proper format for decryption
     const encryptedBuffer = base64ToArrayBuffer(encryptedData.data);
     const iv = base64ToArrayBuffer(encryptedData.iv);
+    const signMessage = encryptedData.signMessage;
+    
+    if (!signMessage) {
+      throw new Error('No signing message found in the encrypted data');
+    }
     
     // Sign message with MetaMask to get the same key used for encryption
     const signature = await signer.signMessage(signMessage);
