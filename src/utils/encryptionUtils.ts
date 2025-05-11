@@ -1,42 +1,43 @@
 
-// Simple encryption/decryption utility
+// Simple encryption/decryption utility with MetaMask signing
 // Note: In a production environment, you should use a more robust encryption library
+
+import { ethers } from 'ethers';
 
 export interface EncryptedData {
   data: string;
   iv: string;
 }
 
-export const encryptData = async (data: string, password: string): Promise<EncryptedData> => {
+// Encrypt data using the wallet's signing capabilities
+export const encryptData = async (data: string, signer: ethers.Signer): Promise<EncryptedData> => {
   try {
-    // Convert data and password to proper format for encryption
+    // Convert data to proper format for encryption
     const dataBuffer = new TextEncoder().encode(data);
-    const passwordBuffer = new TextEncoder().encode(password);
     
-    // Create a key from the password
-    const keyMaterial = await window.crypto.subtle.importKey(
-      'raw',
-      passwordBuffer,
-      { name: 'PBKDF2' },
-      false,
-      ['deriveKey']
-    );
+    // Get the address to use in the signing message
+    const address = await signer.getAddress();
+    
+    // Create a signing message that includes a unique identifier
+    const signMessage = `Encrypt data for Sapphire Network: ${Date.now()}`;
+    
+    // Sign message with MetaMask
+    const signature = await signer.signMessage(signMessage);
+    
+    // Use signature as encryption key
+    const keyData = ethers.utils.arrayify(ethers.utils.keccak256(ethers.utils.toUtf8Bytes(signature)));
+    const keyBuffer = keyData.slice(0, 32); // Use first 32 bytes for AES-256
     
     // Generate a random IV
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
     
-    // Derive an AES-GCM key using the key material
-    const key = await window.crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt: new TextEncoder().encode('sapphire-network-salt'),
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      keyMaterial,
+    // Import the key for encryption
+    const key = await window.crypto.subtle.importKey(
+      'raw',
+      keyBuffer,
       { name: 'AES-GCM', length: 256 },
       false,
-      ['encrypt', 'decrypt']
+      ['encrypt']
     );
     
     // Encrypt the data
@@ -62,34 +63,26 @@ export const encryptData = async (data: string, password: string): Promise<Encry
   }
 };
 
-export const decryptData = async (encryptedData: EncryptedData, password: string): Promise<string> => {
+export const decryptData = async (encryptedData: EncryptedData, signer: ethers.Signer, signMessage: string): Promise<string> => {
   try {
     // Convert data from storage format to proper format for decryption
     const encryptedBuffer = base64ToArrayBuffer(encryptedData.data);
     const iv = base64ToArrayBuffer(encryptedData.iv);
-    const passwordBuffer = new TextEncoder().encode(password);
     
-    // Create a key from the password
-    const keyMaterial = await window.crypto.subtle.importKey(
+    // Sign message with MetaMask to get the same key used for encryption
+    const signature = await signer.signMessage(signMessage);
+    
+    // Use signature as encryption key
+    const keyData = ethers.utils.arrayify(ethers.utils.keccak256(ethers.utils.toUtf8Bytes(signature)));
+    const keyBuffer = keyData.slice(0, 32); // Use first 32 bytes for AES-256
+    
+    // Import the key for decryption
+    const key = await window.crypto.subtle.importKey(
       'raw',
-      passwordBuffer,
-      { name: 'PBKDF2' },
-      false,
-      ['deriveKey']
-    );
-    
-    // Derive an AES-GCM key using the key material
-    const key = await window.crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt: new TextEncoder().encode('sapphire-network-salt'),
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      keyMaterial,
+      keyBuffer,
       { name: 'AES-GCM', length: 256 },
       false,
-      ['encrypt', 'decrypt']
+      ['decrypt']
     );
     
     // Decrypt the data

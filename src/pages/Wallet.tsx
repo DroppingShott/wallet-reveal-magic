@@ -2,17 +2,12 @@ import React, { useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clipboard, ArrowRight, ExternalLink, LogOut, AlertCircle, Key, Shield, Database } from 'lucide-react';
+import { Clipboard, ArrowRight, ExternalLink, LogOut, AlertCircle, Key, Lock, Wallet as WalletIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Input } from '@/components/ui/input';
-import { EncryptedData } from '../utils/encryptionUtils';
 
 const Wallet = () => {
-  const { address, isConnected, isConnecting, error, signature, encryptedAddress, connectWallet, disconnectWallet, signMessage, encryptAddress, decryptAddress, getAddressAsJson } = useWallet();
+  const { address, isConnected, isConnecting, error, encryptedAddress, encryptionMessage, connectWallet, disconnectWallet, encryptAddress, decryptAddress, getAddressAsJson } = useWallet();
   const { toast } = useToast();
-  const [messageToSign, setMessageToSign] = useState("I authorize this application to use my wallet address for encryption/decryption purposes.");
-  const [isSigning, setIsSigning] = useState(false);
-  const [password, setPassword] = useState("");
   const [isEncrypting, setIsEncrypting] = useState(false);
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [decryptedData, setDecryptedData] = useState<string | null>(null);
@@ -40,71 +35,40 @@ const Wallet = () => {
     }
   };
 
-  // Handle signing message
-  const handleSignMessage = async () => {
-    if (!messageToSign.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a message to sign.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsSigning(true);
-    try {
-      const sig = await signMessage(messageToSign);
-      if (sig) {
-        toast({
-          title: "Message Signed Successfully",
-          description: "Your message has been signed with your wallet.",
-        });
-      }
-    } catch (err) {
-      console.error("Failed to sign message:", err);
-    } finally {
-      setIsSigning(false);
-    }
-  };
-
-  // Handle address encryption
+  // Handle address encryption with MetaMask signing
   const handleEncryptAddress = async () => {
-    if (!password.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a password for encryption.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     setIsEncrypting(true);
     try {
       // First get the address as JSON
       const json = getAddressAsJson();
       setJsonAddress(json);
       
-      // Then encrypt it
-      const encrypted = await encryptAddress(password);
+      // Then encrypt it using MetaMask signing
+      const encrypted = await encryptAddress();
       if (encrypted) {
         toast({
           title: "Address Encrypted Successfully",
-          description: "Your wallet address has been encrypted.",
+          description: "Your wallet address has been encrypted using your wallet signature.",
         });
       }
     } catch (err) {
       console.error("Failed to encrypt address:", err);
+      toast({
+        title: "Encryption Failed",
+        description: "Failed to encrypt your address. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setIsEncrypting(false);
     }
   };
 
-  // Handle address decryption
+  // Handle address decryption with MetaMask signing
   const handleDecryptAddress = async () => {
-    if (!encryptedAddress || !password.trim()) {
+    if (!encryptedAddress) {
       toast({
         title: "Error",
-        description: "Encrypted address or password is missing.",
+        description: "No encrypted address found.",
         variant: "destructive"
       });
       return;
@@ -112,16 +76,21 @@ const Wallet = () => {
 
     setIsDecrypting(true);
     try {
-      const decrypted = await decryptAddress(encryptedAddress, password);
+      const decrypted = await decryptAddress(encryptedAddress);
       if (decrypted) {
         setDecryptedData(decrypted);
         toast({
           title: "Address Decrypted Successfully",
-          description: "Your wallet address has been decrypted.",
+          description: "Your wallet address has been decrypted using your wallet signature.",
         });
       }
     } catch (err) {
       console.error("Failed to decrypt address:", err);
+      toast({
+        title: "Decryption Failed",
+        description: "Failed to decrypt your address. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setIsDecrypting(false);
     }
@@ -242,101 +211,37 @@ const Wallet = () => {
             </CardFooter>
           </Card>
           
+          {/* Replace the sign message card with Sapphire Network Encryption/Decryption */}
           <Card className="shadow-xl bg-slate-800 border-slate-700">
             <CardHeader>
-              <CardTitle className="text-xl font-bold text-white">Sign Message</CardTitle>
+              <CardTitle className="text-xl font-bold text-white">Sapphire Network Encryption</CardTitle>
               <CardDescription className="text-slate-300">
-                Sign a message with your wallet to create a cryptographic signature
+                Encrypt and decrypt your wallet address using your MetaMask signature
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="message" className="text-sm text-slate-400">Message to sign:</label>
-                <Input 
-                  id="message"
-                  value={messageToSign} 
-                  onChange={(e) => setMessageToSign(e.target.value)}
-                  placeholder="Enter message to sign" 
-                  className="bg-slate-900 border-slate-700 text-white"
-                />
-              </div>
-              
-              <Button 
-                onClick={handleSignMessage} 
-                className="w-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center gap-2"
-                disabled={isSigning || !messageToSign.trim()}
-              >
-                {isSigning ? (
-                  <>Signing... <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></div></>
-                ) : (
-                  <>Sign Message <Key className="h-4 w-4" /></>
-                )}
-              </Button>
-
-              {signature && (
-                <div className="mt-4">
-                  <p className="text-sm text-slate-400 mb-1">Your signature:</p>
-                  <div className="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                    <div className="flex items-center gap-2">
-                      <p className="text-slate-200 font-mono text-xs break-all">{signature}</p>
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        onClick={() => copyToClipboard(signature, "Signature")}
-                        className="flex-shrink-0 text-slate-400 hover:text-white border-slate-700"
-                      >
-                        <Clipboard className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          
-          {/* New card for encrypting/decrypting wallet address */}
-          <Card className="shadow-xl bg-slate-800 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-xl font-bold text-white">Encrypt & Decrypt Address on Sapphire Network</CardTitle>
-              <CardDescription className="text-slate-300">
-                Encrypt your wallet address as JSON for secure storage and decrypt it when needed
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="password" className="text-sm text-slate-400">Encryption Password:</label>
-                <Input 
-                  id="password"
-                  type="password"
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter encryption password" 
-                  className="bg-slate-900 border-slate-700 text-white"
-                />
-              </div>
-              
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button 
                   onClick={handleEncryptAddress} 
                   className="flex-1 bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2"
-                  disabled={isEncrypting || !password.trim() || !isConnected}
+                  disabled={isEncrypting || !isConnected}
                 >
                   {isEncrypting ? (
                     <>Encrypting... <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></div></>
                   ) : (
-                    <>Encrypt Address <Shield className="h-4 w-4" /></>
+                    <>Encrypt Address with MetaMask <Lock className="h-4 w-4" /></>
                   )}
                 </Button>
                 
                 <Button 
                   onClick={handleDecryptAddress} 
                   className="flex-1 bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2"
-                  disabled={isDecrypting || !password.trim() || !encryptedAddress}
+                  disabled={isDecrypting || !encryptedAddress}
                 >
                   {isDecrypting ? (
                     <>Decrypting... <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></div></>
                   ) : (
-                    <>Decrypt Address <Database className="h-4 w-4" /></>
+                    <>Decrypt Address with MetaMask <Key className="h-4 w-4" /></>
                   )}
                 </Button>
               </div>
@@ -373,6 +278,25 @@ const Wallet = () => {
                         variant="outline" 
                         size="icon" 
                         onClick={() => copyToClipboard(JSON.stringify(encryptedAddress), "Encrypted Address")}
+                        className="flex-shrink-0 text-slate-400 hover:text-white border-slate-700"
+                      >
+                        <Clipboard className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {encryptionMessage && (
+                <div className="mt-4">
+                  <p className="text-sm text-slate-400 mb-1">Encryption Message (Save for decryption):</p>
+                  <div className="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                    <div className="flex items-center gap-2">
+                      <p className="text-slate-200 font-mono text-xs break-all">{encryptionMessage}</p>
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={() => copyToClipboard(encryptionMessage, "Encryption Message")}
                         className="flex-shrink-0 text-slate-400 hover:text-white border-slate-700"
                       >
                         <Clipboard className="h-4 w-4" />
