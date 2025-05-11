@@ -8,8 +8,10 @@ interface WalletContextType {
   isConnected: boolean;
   isConnecting: boolean;
   error: string | null;
+  signature: string | null;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
+  signMessage: (message: string) => Promise<string | null>;
 }
 
 // Create context with default values
@@ -18,8 +20,10 @@ const WalletContext = createContext<WalletContextType>({
   isConnected: false,
   isConnecting: false,
   error: null,
+  signature: null,
   connectWallet: async () => {},
   disconnectWallet: () => {},
+  signMessage: async () => null,
 });
 
 // Custom hook to use the wallet context
@@ -34,6 +38,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signature, setSignature] = useState<string | null>(null);
 
   // Check if MetaMask is installed
   const isMetaMaskInstalled = () => {
@@ -72,10 +77,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           // User disconnected their wallet
           setAddress(null);
           setIsConnected(false);
+          setSignature(null); // Clear signature when wallet is disconnected
         } else {
           // User switched accounts
           setAddress(accounts[0]);
           setIsConnected(true);
+          setSignature(null); // Clear signature when account changes
         }
       };
 
@@ -116,6 +123,31 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const disconnectWallet = () => {
     setAddress(null);
     setIsConnected(false);
+    setSignature(null); // Clear signature when wallet is disconnected
+  };
+
+  // Sign message function
+  const signMessage = async (message: string): Promise<string | null> => {
+    try {
+      setError(null);
+      
+      if (!isConnected || !address) {
+        throw new Error("Wallet not connected");
+      }
+
+      const { ethereum } = window as any;
+      const provider = new ethers.providers.Web3Provider(ethereum);
+      const signer = provider.getSigner();
+      
+      // The message to sign
+      const signature = await signer.signMessage(message);
+      setSignature(signature);
+      return signature;
+    } catch (err: any) {
+      console.error("Error signing message:", err);
+      setError(err.message || "Failed to sign message");
+      return null;
+    }
   };
 
   return (
@@ -125,8 +157,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         isConnected,
         isConnecting,
         error,
+        signature,
         connectWallet,
-        disconnectWallet
+        disconnectWallet,
+        signMessage
       }}
     >
       {children}
