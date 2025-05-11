@@ -1,17 +1,22 @@
-
 import React, { useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clipboard, ArrowRight, ExternalLink, LogOut, AlertCircle, Key } from 'lucide-react';
+import { Clipboard, ArrowRight, ExternalLink, LogOut, AlertCircle, Key, Shield, Database } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
+import { EncryptedData } from '../utils/encryptionUtils';
 
 const Wallet = () => {
-  const { address, isConnected, isConnecting, error, signature, connectWallet, disconnectWallet, signMessage } = useWallet();
+  const { address, isConnected, isConnecting, error, signature, encryptedAddress, connectWallet, disconnectWallet, signMessage, encryptAddress, decryptAddress, getAddressAsJson } = useWallet();
   const { toast } = useToast();
   const [messageToSign, setMessageToSign] = useState("I authorize this application to use my wallet address for encryption/decryption purposes.");
   const [isSigning, setIsSigning] = useState(false);
+  const [password, setPassword] = useState("");
+  const [isEncrypting, setIsEncrypting] = useState(false);
+  const [isDecrypting, setIsDecrypting] = useState(false);
+  const [decryptedData, setDecryptedData] = useState<string | null>(null);
+  const [jsonAddress, setJsonAddress] = useState<string | null>(null);
   
   // Function to format the wallet address for display
   const formatAddress = (address: string | null) => {
@@ -59,6 +64,66 @@ const Wallet = () => {
       console.error("Failed to sign message:", err);
     } finally {
       setIsSigning(false);
+    }
+  };
+
+  // Handle address encryption
+  const handleEncryptAddress = async () => {
+    if (!password.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a password for encryption.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsEncrypting(true);
+    try {
+      // First get the address as JSON
+      const json = getAddressAsJson();
+      setJsonAddress(json);
+      
+      // Then encrypt it
+      const encrypted = await encryptAddress(password);
+      if (encrypted) {
+        toast({
+          title: "Address Encrypted Successfully",
+          description: "Your wallet address has been encrypted.",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to encrypt address:", err);
+    } finally {
+      setIsEncrypting(false);
+    }
+  };
+
+  // Handle address decryption
+  const handleDecryptAddress = async () => {
+    if (!encryptedAddress || !password.trim()) {
+      toast({
+        title: "Error",
+        description: "Encrypted address or password is missing.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsDecrypting(true);
+    try {
+      const decrypted = await decryptAddress(encryptedAddress, password);
+      if (decrypted) {
+        setDecryptedData(decrypted);
+        toast({
+          title: "Address Decrypted Successfully",
+          description: "Your wallet address has been decrypted.",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to decrypt address:", err);
+    } finally {
+      setIsDecrypting(false);
     }
   };
 
@@ -218,6 +283,115 @@ const Wallet = () => {
                         variant="outline" 
                         size="icon" 
                         onClick={() => copyToClipboard(signature, "Signature")}
+                        className="flex-shrink-0 text-slate-400 hover:text-white border-slate-700"
+                      >
+                        <Clipboard className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          
+          {/* New card for encrypting/decrypting wallet address */}
+          <Card className="shadow-xl bg-slate-800 border-slate-700">
+            <CardHeader>
+              <CardTitle className="text-xl font-bold text-white">Encrypt & Decrypt Address on Sapphire Network</CardTitle>
+              <CardDescription className="text-slate-300">
+                Encrypt your wallet address as JSON for secure storage and decrypt it when needed
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="password" className="text-sm text-slate-400">Encryption Password:</label>
+                <Input 
+                  id="password"
+                  type="password"
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter encryption password" 
+                  className="bg-slate-900 border-slate-700 text-white"
+                />
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button 
+                  onClick={handleEncryptAddress} 
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2"
+                  disabled={isEncrypting || !password.trim() || !isConnected}
+                >
+                  {isEncrypting ? (
+                    <>Encrypting... <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></div></>
+                  ) : (
+                    <>Encrypt Address <Shield className="h-4 w-4" /></>
+                  )}
+                </Button>
+                
+                <Button 
+                  onClick={handleDecryptAddress} 
+                  className="flex-1 bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2"
+                  disabled={isDecrypting || !password.trim() || !encryptedAddress}
+                >
+                  {isDecrypting ? (
+                    <>Decrypting... <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></div></>
+                  ) : (
+                    <>Decrypt Address <Database className="h-4 w-4" /></>
+                  )}
+                </Button>
+              </div>
+
+              {jsonAddress && (
+                <div className="mt-4">
+                  <p className="text-sm text-slate-400 mb-1">Address as JSON:</p>
+                  <div className="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                    <div className="flex items-center gap-2">
+                      <p className="text-slate-200 font-mono text-xs break-all">{jsonAddress}</p>
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={() => copyToClipboard(jsonAddress, "JSON Address")}
+                        className="flex-shrink-0 text-slate-400 hover:text-white border-slate-700"
+                      >
+                        <Clipboard className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {encryptedAddress && (
+                <div className="mt-4">
+                  <p className="text-sm text-slate-400 mb-1">Encrypted Address (Sapphire Network):</p>
+                  <div className="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                    <div className="flex items-center gap-2">
+                      <div className="text-slate-200 font-mono text-xs break-all overflow-auto">
+                        <p className="mb-1">Data: {encryptedAddress.data}</p>
+                        <p>IV: {encryptedAddress.iv}</p>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={() => copyToClipboard(JSON.stringify(encryptedAddress), "Encrypted Address")}
+                        className="flex-shrink-0 text-slate-400 hover:text-white border-slate-700"
+                      >
+                        <Clipboard className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {decryptedData && (
+                <div className="mt-4">
+                  <p className="text-sm text-slate-400 mb-1">Decrypted Address Data:</p>
+                  <div className="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                    <div className="flex items-center gap-2">
+                      <p className="text-slate-200 font-mono text-xs break-all">{decryptedData}</p>
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={() => copyToClipboard(decryptedData, "Decrypted Data")}
                         className="flex-shrink-0 text-slate-400 hover:text-white border-slate-700"
                       >
                         <Clipboard className="h-4 w-4" />

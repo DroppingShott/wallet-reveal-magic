@@ -1,6 +1,6 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { ethers } from 'ethers';
+import { encryptData, decryptData, EncryptedData } from '../utils/encryptionUtils';
 
 // Define the shape of our wallet context
 interface WalletContextType {
@@ -9,9 +9,13 @@ interface WalletContextType {
   isConnecting: boolean;
   error: string | null;
   signature: string | null;
+  encryptedAddress: EncryptedData | null;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
   signMessage: (message: string) => Promise<string | null>;
+  encryptAddress: (password: string) => Promise<EncryptedData | null>;
+  decryptAddress: (encryptedData: EncryptedData, password: string) => Promise<string | null>;
+  getAddressAsJson: () => string | null;
 }
 
 // Create context with default values
@@ -21,9 +25,13 @@ const WalletContext = createContext<WalletContextType>({
   isConnecting: false,
   error: null,
   signature: null,
+  encryptedAddress: null,
   connectWallet: async () => {},
   disconnectWallet: () => {},
   signMessage: async () => null,
+  encryptAddress: async () => null,
+  decryptAddress: async () => null,
+  getAddressAsJson: () => null,
 });
 
 // Custom hook to use the wallet context
@@ -39,6 +47,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
+  const [encryptedAddress, setEncryptedAddress] = useState<EncryptedData | null>(null);
 
   // Check if MetaMask is installed
   const isMetaMaskInstalled = () => {
@@ -93,6 +102,57 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       };
     }
   }, []);
+
+  // Get address as JSON object
+  const getAddressAsJson = (): string | null => {
+    if (!address) return null;
+    
+    const addressJson = {
+      address: address,
+      network: 'sapphire',
+      timestamp: new Date().toISOString()
+    };
+    
+    return JSON.stringify(addressJson);
+  };
+
+  // Encrypt address function
+  const encryptAddress = async (password: string): Promise<EncryptedData | null> => {
+    try {
+      setError(null);
+      
+      if (!isConnected || !address) {
+        throw new Error("Wallet not connected");
+      }
+      
+      const addressJson = getAddressAsJson();
+      if (!addressJson) {
+        throw new Error("Failed to create address JSON");
+      }
+      
+      const encrypted = await encryptData(addressJson, password);
+      setEncryptedAddress(encrypted);
+      return encrypted;
+    } catch (err: any) {
+      console.error("Error encrypting address:", err);
+      setError(err.message || "Failed to encrypt address");
+      return null;
+    }
+  };
+
+  // Decrypt address function
+  const decryptAddress = async (encryptedData: EncryptedData, password: string): Promise<string | null> => {
+    try {
+      setError(null);
+      
+      const decrypted = await decryptData(encryptedData, password);
+      return decrypted;
+    } catch (err: any) {
+      console.error("Error decrypting address:", err);
+      setError(err.message || "Failed to decrypt address");
+      return null;
+    }
+  };
 
   // Connect wallet function
   const connectWallet = async () => {
@@ -158,9 +218,13 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         isConnecting,
         error,
         signature,
+        encryptedAddress,
         connectWallet,
         disconnectWallet,
-        signMessage
+        signMessage,
+        encryptAddress,
+        decryptAddress,
+        getAddressAsJson
       }}
     >
       {children}
